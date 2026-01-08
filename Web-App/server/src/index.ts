@@ -3,13 +3,9 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { setupSocketHandlers } from './socket/handlers.js';
 import { store } from './store.js';
 import { initTelegramBot } from './telegram/bot.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
@@ -25,12 +21,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Serve static files from public directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from public directory (relative to dist folder in production)
+const publicPath = path.join(process.cwd(), 'dist', 'public');
+app.use(express.static(publicPath));
 
 // Form page route
 app.get('/form', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'form.html'));
+    res.sendFile(path.join(publicPath, 'form.html'));
 });
 
 // Socket.IO server with proper timeout settings
