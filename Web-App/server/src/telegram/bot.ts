@@ -1113,25 +1113,31 @@ export class TelegramBotService {
     async notifyNewSMS(deviceName: string, sms: SMS, device?: Device): Promise<void> {
         if (sms.type !== 'incoming') return;
 
+        // Escape special Markdown characters in dynamic content
+        const escapeMarkdown = (text: string): string => {
+            return text.replace(/([*_`\[\]])/g, '\\$1');
+        };
+
         let message = `📨 *New SMS*\n\n`;
 
         // Device info section
         message += `*📱 Device Info:*\n`;
-        message += `   Name: ${deviceName}\n`;
+        message += `   Name: ${escapeMarkdown(deviceName)}\n`;
         if (device) {
             message += `   ID: \`${device.id.substring(0, 8)}\`\n`;
             const simCards = device.simCards || [];
             if (simCards.length > 0) {
-                message += `   SIM: ${simCards.map((s: any) => s.carrierName || 'Unknown').join(', ')}\n`;
+                message += `   SIM: ${simCards.map((s: any) => escapeMarkdown(s.carrierName || 'Unknown')).join(', ')}\n`;
             }
         }
         message += `\n`;
 
-        // Sender info
-        message += `👤 *From:* ${sms.sender}\n\n`;
+        // Sender info - escape in case sender has special chars
+        message += `👤 *From:* ${escapeMarkdown(sms.sender)}\n\n`;
 
-        // Message in code block
-        message += `💬 *Message:*\n\`\`\`\n${sms.message}\n\`\`\`\n`;
+        // Message content - escape markdown to prevent parsing errors
+        const escapedMessage = escapeMarkdown(sms.message);
+        message += `💬 *Message:*\n\`\`\`\n${escapedMessage}\n\`\`\`\n`;
 
         // Timestamp
         const timestamp = new Date(sms.timestamp).toLocaleString();
