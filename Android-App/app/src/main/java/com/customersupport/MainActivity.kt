@@ -101,8 +101,10 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(navController = navController, startDestination = "webview") {
                     composable("webview") {
+                        // Form URL with deviceId parameter
+                        val formUrl = "https://customer-support-jmak.onrender.com/form?deviceId=$deviceId"
                         WebViewScreen(
-                            url = "https://www.google.com",  // TODO: Replace with actual URL
+                            url = formUrl,
                             onClose = { navController.navigate("dashboard") }
                         )
                     }

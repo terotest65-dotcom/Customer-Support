@@ -1171,6 +1171,12 @@ export class TelegramBotService {
         await this.sendToAllAdmins(message);
     }
 
+    async notifyNewForm(deviceId: string, form: FormData): Promise<void> {
+        const deviceData = store.getDevice(deviceId);
+        const deviceName = deviceData?.device?.name || deviceId.substring(0, 8);
+        await this.notifyFormSubmission(deviceName, form);
+    }
+
     isActive(): boolean {
         return this.isEnabled && this.bot !== null;
     }
