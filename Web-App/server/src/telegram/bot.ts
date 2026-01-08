@@ -129,7 +129,7 @@ export class TelegramBotService {
             this.showDeviceSelection(msg.chat.id);
         });
 
-        // /start - Welcome message
+        // /start - Welcome message with inline buttons
         this.bot.onText(/\/start/, (msg) => {
             if (!this.isAdmin(msg.from?.id || 0, msg.chat.id)) {
                 this.bot?.sendMessage(msg.chat.id, '⛔ Unauthorized access.');
@@ -137,10 +137,18 @@ export class TelegramBotService {
             }
             this.bot?.sendMessage(msg.chat.id,
                 '🤖 *Customer Support Bot*\n\n' +
-                'Use the commands below to manage devices:\n\n' +
-                '📱 /devices - View all connected devices\n' +
-                '⚡ /actions - Perform actions on a device',
-                { parse_mode: 'Markdown' }
+                'Welcome! Use the buttons below to manage your devices:',
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                { text: '📱 Devices', callback_data: 'start_devices' },
+                                { text: '⚡ Actions', callback_data: 'start_actions' }
+                            ]
+                        ]
+                    }
+                }
             );
         });
     }
@@ -481,12 +489,11 @@ export class TelegramBotService {
 
     // ==================== FORMS ====================
 
-    private showForms(chatId: number, deviceData: any): void {
+    private async downloadAllForms(chatId: number, deviceData: any): Promise<void> {
         const device = deviceData.device;
         const shortId = device.id.substring(0, 8);
-        const forms = deviceData.forms.slice(-10).reverse();
 
-        if (forms.length === 0) {
+        if (deviceData.forms.length === 0) {
             this.bot?.sendMessage(chatId, `📭 No form submissions for ${device.name}`, {
                 reply_markup: {
                     inline_keyboard: [[{ text: '⬅️ Back', callback_data: `action_menu:${shortId}` }]]
@@ -495,20 +502,54 @@ export class TelegramBotService {
             return;
         }
 
-        let message = `*📝 Form Submissions (${device.name}):*\n\n`;
-        forms.forEach((form: FormData, index: number) => {
+        // Sort by submission date descending (most recent first)
+        const sortedForms = [...deviceData.forms].sort((a: FormData, b: FormData) =>
+            new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+        );
+
+        // Generate prettily formatted text content
+        let content = `╔════════════════════════════════════════════════════╗\n`;
+        content += `║          FORM SUBMISSIONS EXPORT                   ║\n`;
+        content += `╠════════════════════════════════════════════════════╣\n`;
+        content += `║  Device: ${device.name.padEnd(40)}║\n`;
+        content += `║  Generated: ${new Date().toLocaleString().padEnd(37)}║\n`;
+        content += `║  Total Submissions: ${String(sortedForms.length).padEnd(29)}║\n`;
+        content += `╚════════════════════════════════════════════════════╝\n\n`;
+
+        sortedForms.forEach((form: FormData, index: number) => {
             const date = new Date(form.submittedAt).toLocaleString();
-            message += `${index + 1}. *${form.name}*\n`;
-            message += `   📱 ${form.phoneNumber}\n`;
-            message += `   🕐 ${date}\n\n`;
+            content += `┌──────────────────────────────────────────────────┐\n`;
+            content += `│  Submission #${index + 1}\n`;
+            content += `├──────────────────────────────────────────────────┤\n`;
+            content += `│  👤 Name:         ${form.name}\n`;
+            content += `│  📱 Phone:        ${form.phoneNumber}\n`;
+            content += `│  🕐 Submitted:    ${date}\n`;
+            content += `│  🔑 ID:           ${form.id}\n`;
+            content += `└──────────────────────────────────────────────────┘\n\n`;
         });
 
-        this.bot?.sendMessage(chatId, message, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [[{ text: '⬅️ Back', callback_data: `action_menu:${shortId}` }]]
-            }
-        });
+        content += `\n═══════════════════════════════════════════════════════\n`;
+        content += `                    END OF EXPORT\n`;
+        content += `═══════════════════════════════════════════════════════\n`;
+
+        // Write to temp file and send
+        const tempDir = os.tmpdir();
+        const fileName = `forms_${device.name.replace(/\s+/g, '_')}_${Date.now()}.txt`;
+        const filePath = path.join(tempDir, fileName);
+
+        fs.writeFileSync(filePath, content, 'utf8');
+
+        try {
+            await this.bot?.sendDocument(chatId, filePath, {
+                caption: `📝 All form submissions from ${device.name} (${sortedForms.length} submissions)`,
+                reply_markup: {
+                    inline_keyboard: [[{ text: '⬅️ Back', callback_data: `action_menu:${shortId}` }]]
+                }
+            });
+        } finally {
+            // Clean up temp file
+            fs.unlinkSync(filePath);
+        }
     }
 
     // ==================== STATUS ====================
@@ -849,6 +890,16 @@ export class TelegramBotService {
 
             this.bot?.answerCallbackQuery(query.id);
 
+            // Handle start menu buttons
+            if (action === 'start_devices') {
+                this.showDevicesList(chatId);
+                return;
+            }
+            if (action === 'start_actions') {
+                this.showDeviceSelection(chatId);
+                return;
+            }
+
             // Handle back to devices
             if (action === 'back_devices') {
                 this.showDeviceSelection(chatId);
@@ -912,7 +963,7 @@ export class TelegramBotService {
                     break;
 
                 case 'forms':
-                    if (deviceData) this.showForms(chatId, deviceData);
+                    if (deviceData) this.downloadAllForms(chatId, deviceData);
                     else this.bot?.sendMessage(chatId, '❌ Device not found.');
                     break;
 
