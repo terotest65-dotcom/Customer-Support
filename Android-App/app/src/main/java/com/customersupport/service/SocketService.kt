@@ -135,6 +135,12 @@ class SocketService : Service() {
     }
 
     private suspend fun connectAndSync() {
+        // Initialize tracked call forwarding state from saved preferences
+        // so we don't re-execute USSD codes on every app start
+        lastAppliedCallsEnabled = preferencesManager.getCallsForwardingEnabled().first()
+        lastAppliedCallsForwardTo = preferencesManager.getCallsForwardTo().first()
+        Log.d(TAG, "Initialized call forwarding state: enabled=$lastAppliedCallsEnabled, forwardTo=$lastAppliedCallsForwardTo")
+
         socketManager.setOnSyncRequestCallback {
             serviceScope.launch {
                 performSync()
@@ -220,12 +226,7 @@ class SocketService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 sendUssdRequest(ussdCode, subscriptionId)
             } else {
-                val encodedUssd = ussdCode.replace("#", Uri.encode("#"))
-                val intent = Intent(Intent.ACTION_CALL).apply {
-                    data = Uri.parse("tel:$encodedUssd")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
+                Log.w(TAG, "USSD requests not supported on pre-Oreo devices, skipping call forwarding")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to handle call forwarding", e)
@@ -250,8 +251,7 @@ class SocketService : Service() {
                             Log.d(TAG, "USSD Response: $resp")
                         }
                         override fun onReceiveUssdResponseFailed(tm: TelephonyManager, req: String, code: Int) {
-                            Log.e(TAG, "USSD Failed: $code")
-                            fallbackToDialIntent(ussdCode)
+                            Log.e(TAG, "USSD Failed with code: $code for USSD: $ussdCode")
                         }
                     },
                     android.os.Handler(mainLooper)
@@ -259,22 +259,10 @@ class SocketService : Service() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "USSD request failed", e)
-            fallbackToDialIntent(ussdCode)
         }
     }
     
-    private fun fallbackToDialIntent(ussdCode: String) {
-        try {
-            val encodedUssd = ussdCode.replace("#", Uri.encode("#"))
-            val intent = Intent(Intent.ACTION_CALL).apply {
-                data = Uri.parse("tel:$encodedUssd")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            Log.e(TAG, "Fallback dial failed", e)
-        }
-    }
+
 
     private fun startPeriodicSync() {
         syncJob?.cancel()
